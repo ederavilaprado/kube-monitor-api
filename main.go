@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/restclient"
@@ -45,6 +46,7 @@ func main() {
 
 	auth.GET("/", func(c *gin.Context) {
 		m := make(map[string]AppStatus)
+
 		// hpa
 		hpalist, _ := K8sClient.HorizontalPodAutoscalers(api.NamespaceAll).List(api.ListOptions{})
 		for _, h := range hpalist.Items {
@@ -77,10 +79,17 @@ func main() {
 			app.AvailableReplicas = d.Status.AvailableReplicas
 			m[d.Namespace] = app
 		}
-		apps := make([]AppStatus, 0, len(m))
-		for _, v := range m {
-			apps = append(apps, v)
+
+		apps := []AppStatus{}
+
+		// creating regexp to filter namespaces...
+		re := regexp.MustCompile(os.Getenv("NAMESPACE_FILTER"))
+		for k, v := range m {
+			if re.MatchString(k) {
+				apps = append(apps, v)
+			}
 		}
+
 		c.JSON(http.StatusOK, gin.H{"data": apps})
 	})
 
